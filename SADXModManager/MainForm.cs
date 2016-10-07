@@ -123,7 +123,7 @@ namespace SADXModManager
 			mods = new Dictionary<string, ModInfo>();
 			codes = new List<Code>(mainCodes.Codes);
 			string modDir = Path.Combine(Environment.CurrentDirectory, "mods");
-			foreach (string filename in GetModFiles(new DirectoryInfo(modDir)))
+			foreach (string filename in GetModFiles(new DirectoryInfo(modDir).GetDirectories()))
 				mods.Add(Path.GetDirectoryName(filename).Substring(modDir.Length + 1), IniFile.Deserialize<ModInfo>(filename));
 			modListView.BeginUpdate();
 			foreach (string mod in new List<string>(loaderini.Mods))
@@ -157,23 +157,24 @@ namespace SADXModManager
 			codesCheckedListBox.EndUpdate();
 		}
 
-		private static IEnumerable<string> GetModFiles(DirectoryInfo directoryInfo)
+		private static IEnumerable<string> GetModFiles(DirectoryInfo[] dirs)
 		{
-			string modini = Path.Combine(directoryInfo.FullName, "mod.ini");
-			if (File.Exists(modini))
-			{
-				yield return modini;
-				yield break;
-			}
-
-			foreach (DirectoryInfo item in directoryInfo.GetDirectories())
-			{
-				if (!item.Name.Equals("system", StringComparison.OrdinalIgnoreCase))
-				{
-					foreach (string filename in GetModFiles(item))
-						yield return filename;
-				}
-			}
+            foreach(DirectoryInfo item in dirs)
+            {
+                if (!item.Name.Equals("system", StringComparison.OrdinalIgnoreCase))
+                {
+                    string modini = Path.Combine(item.FullName, "mod.ini");
+                    if (File.Exists(modini))
+                    {
+                        yield return modini;
+                    }
+                    else
+                    {
+                        foreach (string filename in GetModFiles(item.GetDirectories()))
+                            yield return filename;
+                    }
+                }
+            }
 		}
 
 		private void modListView_SelectedIndexChanged(object sender, EventArgs e)
