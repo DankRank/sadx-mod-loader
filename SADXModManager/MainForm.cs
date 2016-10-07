@@ -161,18 +161,15 @@ namespace SADXModManager
 		{
             foreach(DirectoryInfo item in dirs)
             {
-                if (!item.Name.Equals("system", StringComparison.OrdinalIgnoreCase))
+                string modini = Path.Combine(item.FullName, "mod.ini");
+                if (File.Exists(modini))
                 {
-                    string modini = Path.Combine(item.FullName, "mod.ini");
-                    if (File.Exists(modini))
-                    {
-                        yield return modini;
-                    }
-                    else
-                    {
-                        foreach (string filename in GetModFiles(item.GetDirectories()))
-                            yield return filename;
-                    }
+                    yield return modini;
+                }
+                else
+                {
+                    foreach (string filename in GetModFiles(item.GetDirectories()))
+                        yield return filename;
                 }
             }
 		}
