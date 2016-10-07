@@ -30,10 +30,12 @@ namespace SADXModManager
 		List<Code> codes;
 		bool installed;
 		bool suppressEvent;
+        string modDir;
 
-		private void MainForm_Load(object sender, EventArgs e)
+        private void MainForm_Load(object sender, EventArgs e)
 		{
-			if (File.Exists("sadxmlver.txt"))
+            modDir = Path.Combine(Environment.CurrentDirectory, "mods");
+            if (File.Exists("sadxmlver.txt"))
 			{
 				System.Net.WebClient wc = new System.Net.WebClient();
 				string msg = null;
@@ -117,14 +119,34 @@ namespace SADXModManager
 			}
 		}
 
+        private void RecursivelyAddMod(Dictionary<string, ModInfo> mods, string filename)
+        {
+            string path = Path.GetDirectoryName(filename).Substring(modDir.Length + 1);
+            var ini = IniFile.Load(filename);
+            mods.Add(path,IniFile.Deserialize<ModInfo>(ini));
+            if (ini.ContainsKey("Submods"))
+            {
+                foreach (var kv in ini["Submods"])
+                {
+                    var dirInfo = new DirectoryInfo(Path.Combine(Path.GetDirectoryName(filename), kv.Value));
+                    if (!dirInfo.Exists)
+                    {
+                        MessageBox.Show("Submod " + kv.Value + " doesn't exist in mod " + path);
+                        continue;
+                    }
+                    foreach (string filename2 in GetModFiles(new DirectoryInfo[] { dirInfo }))
+                        RecursivelyAddMod(mods, filename2);
+                }
+            }
+        }
+
 		private void LoadModList()
 		{
 			modListView.Items.Clear();
 			mods = new Dictionary<string, ModInfo>();
 			codes = new List<Code>(mainCodes.Codes);
-			string modDir = Path.Combine(Environment.CurrentDirectory, "mods");
-			foreach (string filename in GetModFiles(new DirectoryInfo(modDir).GetDirectories()))
-				mods.Add(Path.GetDirectoryName(filename).Substring(modDir.Length + 1), IniFile.Deserialize<ModInfo>(filename));
+            foreach (string filename in GetModFiles(new DirectoryInfo(modDir).GetDirectories()))
+                RecursivelyAddMod(mods, filename);
 			modListView.BeginUpdate();
 			foreach (string mod in new List<string>(loaderini.Mods))
 			{
@@ -511,7 +533,6 @@ namespace SADXModManager
 		{
 			if (suppressEvent) return;
 			codes = new List<Code>(mainCodes.Codes);
-			string modDir = Path.Combine(Environment.CurrentDirectory, "mods");
 			List<string> modlist = new List<string>();
 			foreach (ListViewItem item in modListView.CheckedItems)
 				modlist.Add((string)item.Tag);
@@ -524,7 +545,7 @@ namespace SADXModManager
 				{
 					ModInfo inf = mods[mod];
 					if (!string.IsNullOrEmpty(inf.Codes))
-						codes.AddRange(CodeList.Load(Path.Combine(Path.Combine(modDir, mod), inf.Codes)).Codes);
+						codes.AddRange(CodeList.Load(Path.Combine(modDir, mod, inf.Codes)).Codes);
 				}
 			loaderini.EnabledCodes = new List<string>(loaderini.EnabledCodes.Where(a => codes.Any(c => c.Name == a)));
 			foreach (Code item in codes.Where(a => a.Required && !loaderini.EnabledCodes.Contains(a.Name)))
