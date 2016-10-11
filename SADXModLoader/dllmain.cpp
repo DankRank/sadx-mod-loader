@@ -2017,6 +2017,10 @@ static void __cdecl InitMods(void)
 
 	string _mainsavepath, _chaosavepath;
 
+
+	// first - mod name, second - list of required dependencies
+	vector<std::pair<string, vector<string>*>> deps;
+
 	// It's mod loading time!
 	PrintDebug("Loading mods...\n");
 	for (int i = 1; i <= 999; i++)
@@ -2026,6 +2030,7 @@ static void __cdecl InitMods(void)
 		if (!settings->hasKey(key))
 			break;
 
+		const string mod_dirname = settings->getString(key);
 		const string mod_dirA = "mods\\" + settings->getString(key);
 		const wstring mod_dir = L"mods\\" + settings->getWString(key);
 		const wstring mod_inifile = mod_dir + L"\\mod.ini";
@@ -2034,11 +2039,29 @@ static void __cdecl InitMods(void)
 		{
 			PrintDebug("Could not open file mod.ini in \"mods\\%s\".\n", mod_dirA.c_str());
 			errors.push_back(std::pair<string, string>(mod_dirA, "mod.ini missing"));
+
+			// TODO: Make it break dependecy chain on dll errors? -Egor
+			deps.push_back(std::pair<string, vector<string>*>(mod_dirname,nullptr));
 			continue;
 		}
 		unique_ptr<IniFile> ini_mod(new IniFile(f_mod_ini));
 		fclose(f_mod_ini);
 
+		// Find all the dependencies
+		// TODO: refactor this messy function in such a way that we error out dependencies before loading everything. -Egor
+		vector<string> *mod_depnames = new vector<string>();
+		if (ini_mod->hasGroup("Dependencies"))
+		{
+			IniGroup *group = ini_mod->getGroup("Dependencies");
+			for (auto it = group->begin(); it != group->end(); ++it) {
+				// TODO: Make it case-insensetive -Egor
+				if (it->second == "Required") {
+					mod_depnames->push_back(it->first);
+				}
+			}
+			
+		}
+		deps.push_back(std::pair<string, vector<string>*>(mod_dirname, mod_depnames));
 		const IniGroup *modinfo = ini_mod->getGroup("");
 		const string mod_nameA = modinfo->getString("Name");
 		const wstring mod_name = modinfo->getWString("Name");
@@ -2272,6 +2295,23 @@ static void __cdecl InitMods(void)
 		wstring modTextureDir = mod_dir + L"\\textures\\";
 		if (PathFileExists(modTextureDir.c_str()))
 			TexturePackPaths.push_back(modTextureDir);
+	}
+
+	for (auto& p : deps) { // for-each mod
+		if (p.second) {
+			for (auto& depmod : *p.second) { // for-each dependency
+				bool found = false;
+				for(auto& p2 : deps) { // find that dependency
+					if (p2.first == depmod && p2.second) {
+						found = true;
+						break;
+					}
+				}
+				if (!found) {
+					errors.push_back(std::pair<string, string>(p.first,"Required dependency "+depmod+" not loaded"));
+				}
+			}
+		}
 	}
 
 	if (!errors.empty())
