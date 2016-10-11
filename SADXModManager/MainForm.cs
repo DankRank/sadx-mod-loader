@@ -142,6 +142,10 @@ namespace SADXModManager
 
 		private void LoadModList()
 		{
+            if (!Directory.Exists(modDir)) {
+                MessageBox.Show(this, "\"mods\" directory doesn't exist.\n\nPlease check your installation.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
 			modListView.Items.Clear();
 			mods = new Dictionary<string, ModInfo>();
 			codes = new List<Code>(mainCodes.Codes);
